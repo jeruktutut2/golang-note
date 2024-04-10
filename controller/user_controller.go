@@ -19,6 +19,7 @@ type UserController interface {
 	CheckLoginRedis(c echo.Context) error
 	LoginMap(c echo.Context) error
 	CheckLoginMap(c echo.Context) error
+	Logout(c echo.Context) error
 }
 
 type UserControllerImplementaion struct {
@@ -139,4 +140,16 @@ func (controller *UserControllerImplementaion) LoginMap(c echo.Context) error {
 func (controller *UserControllerImplementaion) CheckLoginMap(c echo.Context) error {
 	requestId := c.Request().Context().Value(middleware.RequestIdKey).(string)
 	return modelresponse.ToResponse(c, http.StatusOK, requestId, "check login map", "")
+}
+
+func (controller *UserControllerImplementaion) Logout(c echo.Context) error {
+	requestId := c.Request().Context().Value(middleware.RequestIdKey).(string)
+	coockie := new(http.Cookie)
+	coockie.Name = "Authorization"
+	coockie.Value = ""
+	coockie.Path = "/"
+	coockie.MaxAge = -1
+	coockie.HttpOnly = true
+	c.SetCookie(coockie)
+	return modelresponse.ToResponse(c, http.StatusOK, requestId, "successfully logout", "")
 }

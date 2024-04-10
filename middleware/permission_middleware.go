@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"golang-note/helper"
 	modelresponse "golang-note/model/response"
 	"net/http"
@@ -57,7 +58,12 @@ func CheckPermissionRedis(client *redis.Client) func(next echo.HandlerFunc) echo
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			requestId := c.Request().Context().Value(RequestIdKey).(string)
-			tokenId := c.Request().Context().Value(TokenIdKey).(string)
+			tokenId, ok := c.Request().Context().Value(TokenIdKey).(string)
+			if !ok {
+				err := errors.New("cannot find tokenid")
+				helper.PrintLogToTerminal(err, requestId)
+				return modelresponse.ToResponse(c, http.StatusUnauthorized, requestId, "", "unauthorized")
+			}
 			permissionsString, err := client.Get(c.Request().Context(), tokenId).Result()
 			if err != nil && err != redis.Nil {
 				helper.PrintLogToTerminal(err, requestId)
@@ -87,7 +93,12 @@ func CheckNoPermossionRedis(client *redis.Client) func(next echo.HandlerFunc) ec
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			requestId := c.Request().Context().Value(RequestIdKey).(string)
-			tokenId := c.Request().Context().Value(TokenIdKey).(string)
+			tokenId, ok := c.Request().Context().Value(TokenIdKey).(string)
+			if !ok {
+				err := errors.New("cannot find tokenid")
+				helper.PrintLogToTerminal(err, requestId)
+				return modelresponse.ToResponse(c, http.StatusUnauthorized, requestId, "", "unauthorized")
+			}
 			permissionsString, err := client.Get(c.Request().Context(), tokenId).Result()
 			if err != nil && err != redis.Nil {
 				helper.PrintLogToTerminal(err, requestId)

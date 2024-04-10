@@ -25,6 +25,7 @@ func UserRoute(e *echo.Echo, jwtKey string, client *redis.Client, controller con
 	e.GET("/api/v1/check-login-redis", controller.CheckLoginRedis, middleware.AuthenticateRedis(client))
 	e.POST("/api/v1/login-map", controller.LoginMap)
 	e.GET("/api/v1/check-login-map", controller.CheckLoginMap, middleware.AuthenticateMap)
+	e.POST("/api/v1/logout", controller.Logout)
 }
 
 func ContextRoute(e *echo.Echo, controller controller.ContextController) {
