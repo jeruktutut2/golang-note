@@ -1,13 +1,18 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/labstack/echo/v4"
 )
 
 type StreamJsonService interface {
 	Stream(streamChannel chan string) string
+	StreamWithoutChannel(c echo.Context) string
+	StreamWithSSE(c echo.Context) string
 }
 
 type StreamJsonServiceImplementation struct {
@@ -51,4 +56,28 @@ func (service *StreamJsonServiceImplementation) Stream(streamChannel chan string
 		close(streamChannel)
 	}()
 	return "service"
+}
+
+func (service *StreamJsonServiceImplementation) StreamWithoutChannel(c echo.Context) string {
+	json.NewEncoder(c.Response()).Encode("stream1")
+	c.Response().Flush()
+	time.Sleep(2 * time.Second)
+	json.NewEncoder(c.Response()).Encode("stream2")
+	c.Response().Flush()
+	time.Sleep(2 * time.Second)
+	json.NewEncoder(c.Response()).Encode("stream3")
+	c.Response().Flush()
+	return "stream"
+}
+
+func (service *StreamJsonServiceImplementation) StreamWithSSE(c echo.Context) string {
+	json.NewEncoder(c.Response()).Encode("stream1")
+	c.Response().Flush()
+	time.Sleep(2 * time.Second)
+	json.NewEncoder(c.Response()).Encode("stream2")
+	c.Response().Flush()
+	time.Sleep(2 * time.Second)
+	json.NewEncoder(c.Response()).Encode("stream3")
+	c.Response().Flush()
+	return "stream"
 }

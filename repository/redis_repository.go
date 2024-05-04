@@ -10,6 +10,7 @@ import (
 type RedisRepository interface {
 	Set(client *redis.Client, ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error)
 	Get(client *redis.Client, ctx context.Context, key string) (string, error)
+	Del(client *redis.Client, ctx context.Context, key string) (int64, error)
 	FlushDb(client *redis.Client, ctx context.Context) (string, error)
 }
 
@@ -26,6 +27,10 @@ func (repository *RedisRepositoryImplementation) Set(client *redis.Client, ctx c
 
 func (repository *RedisRepositoryImplementation) Get(client *redis.Client, ctx context.Context, key string) (string, error) {
 	return client.Get(ctx, key).Result()
+}
+
+func (repository *RedisRepositoryImplementation) Del(client *redis.Client, ctx context.Context, key string) (int64, error) {
+	return client.Del(ctx, key).Result()
 }
 
 func (repository *RedisRepositoryImplementation) FlushDb(client *redis.Client, ctx context.Context) (string, error) {

@@ -1,6 +1,7 @@
 package exception
 
 import (
+	"encoding/json"
 	modelresponse "golang-note/model/response"
 	"net/http"
 
@@ -9,7 +10,7 @@ import (
 
 func ErrorHandler(c echo.Context, requestId string, err interface{}) error {
 	var httpStatusCode int
-	var errorMessage string
+	var errorMessage interface{}
 	if exception, ok := err.(BadRequestException); ok {
 		httpStatusCode = exception.Code
 		errorMessage = exception.Error()
@@ -18,7 +19,9 @@ func ErrorHandler(c echo.Context, requestId string, err interface{}) error {
 		errorMessage = exception.Error()
 	} else if exception, ok := err.(ValidationException); ok {
 		httpStatusCode = exception.Code
-		errorMessage = exception.Error()
+		var exceptionError map[string]interface{}
+		json.Unmarshal([]byte(exception.Error()), &exceptionError)
+		errorMessage = exceptionError
 	} else if exception, ok := err.(TimeoutCancelException); ok {
 		httpStatusCode = exception.Code
 		errorMessage = exception.Error()

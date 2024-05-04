@@ -10,9 +10,10 @@ type UserRepository interface {
 	GetByUsernameForUpdate(tx *sql.Tx, ctx context.Context, user *modelentity.User) (err error)
 	GetByUsername(tx *sql.Tx, ctx context.Context, user *modelentity.User) (err error)
 	GetByIdForUpdate(tx *sql.Tx, ctx context.Context, user *modelentity.User) (err error)
+	FindByEmailForUpate(tx *sql.Tx, ctx context.Context, email string) (user modelentity.User, err error)
 	UpdateRefreshToken(tx *sql.Tx, ctx context.Context, id int32, refreshToken string) (rowsAffected int64, err error)
 	CountByRefreshToken(tx *sql.Tx, ctx context.Context, username string, refreshToken string, countRefreshToken *uint16) (err error)
-	GetByRefreshToken(tx *sql.Tx, ctx context.Context, user *modelentity.User) (err error)
+	GetByRefreshToken(tx *sql.Tx, ctx context.Context, refreshToken string) (user modelentity.User, err error)
 }
 
 type UserRepositoryImplementaion struct {
@@ -52,6 +53,15 @@ func (repository *UserRepositoryImplementaion) GetByIdForUpdate(tx *sql.Tx, ctx 
 	return
 }
 
+func (repository *UserRepositoryImplementaion) FindByEmailForUpate(tx *sql.Tx, ctx context.Context, email string) (user modelentity.User, err error) {
+	query := `SELECT id, username, email, password, refresh_token, utc, created_at FROM user WHERE email = ? FOR UPDATE;`
+	err = tx.QueryRowContext(ctx, query, email).Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.RefreshToken, &user.Utc, &user.CreatedAt)
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (repository *UserRepositoryImplementaion) UpdateRefreshToken(tx *sql.Tx, ctx context.Context, id int32, refreshToken string) (rowsAffected int64, err error) {
 	query := `UPDATE user SET refresh_token = ? WHERE id = ?;`
 	result, err := tx.ExecContext(ctx, query, refreshToken, id)
@@ -71,11 +81,11 @@ func (repository *UserRepositoryImplementaion) CountByRefreshToken(tx *sql.Tx, c
 	return
 }
 
-func (repository *UserRepositoryImplementaion) GetByRefreshToken(tx *sql.Tx, ctx context.Context, user *modelentity.User) (err error) {
+func (repository *UserRepositoryImplementaion) GetByRefreshToken(tx *sql.Tx, ctx context.Context, refreshToken string) (user modelentity.User, err error) {
 	query := `SELECT id, username, email, password, refresh_token, utc, created_at FROM user WHERE refresh_token = ?;`
-	err = tx.QueryRowContext(ctx, query, &user.RefreshToken.String).Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.RefreshToken, &user.Utc, &user.CreatedAt)
+	err = tx.QueryRowContext(ctx, query, refreshToken).Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.RefreshToken, &user.Utc, &user.CreatedAt)
 	if err != nil {
-		user = nil
+		user = modelentity.User{}
 		return
 	}
 	return

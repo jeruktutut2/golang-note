@@ -20,6 +20,8 @@ type UserController interface {
 	LoginMap(c echo.Context) error
 	CheckLoginMap(c echo.Context) error
 	Logout(c echo.Context) error
+	LogoutRedis(c echo.Context) error
+	LogoutMap(c echo.Context) error
 }
 
 type UserControllerImplementaion struct {
@@ -152,4 +154,31 @@ func (controller *UserControllerImplementaion) Logout(c echo.Context) error {
 	coockie.HttpOnly = true
 	c.SetCookie(coockie)
 	return modelresponse.ToResponse(c, http.StatusOK, requestId, "successfully logout", "")
+}
+
+func (controller *UserControllerImplementaion) LogoutRedis(c echo.Context) error {
+	requestId := c.Request().Context().Value(middleware.RequestIdKey).(string)
+	key := c.Request().Context().Value(middleware.TokenIdKey).(string)
+	logoutRedisResponse, err := controller.UserService.LogoutRedis(c.Request().Context(), requestId, key)
+	if err != nil {
+		return exception.ErrorHandler(c, requestId, err)
+	}
+	cookie := new(http.Cookie)
+	cookie.Name = "Authorization"
+	cookie.Value = ""
+	cookie.Path = "/"
+	cookie.MaxAge = -1
+	cookie.HttpOnly = true
+	c.SetCookie(cookie)
+	return modelresponse.ToResponse(c, http.StatusOK, requestId, logoutRedisResponse, "")
+}
+
+func (controller *UserControllerImplementaion) LogoutMap(c echo.Context) error {
+	requestId := c.Request().Context().Value(middleware.RequestIdKey).(string)
+	sessionIs := c.Request().Context().Value(middleware.SessionKey).(string)
+	logoutMapResponse, err := controller.UserService.LogoutMap(c.Request().Context(), sessionIs)
+	if err != nil {
+		return exception.ErrorHandler(c, requestId, err)
+	}
+	return modelresponse.ToResponse(c, http.StatusOK, requestId, logoutMapResponse, "")
 }

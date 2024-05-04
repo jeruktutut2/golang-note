@@ -30,6 +30,8 @@ type UserService interface {
 	RefreshToken(ctx context.Context, requestId string, username string, refreshToken string) (accessToken string, err error)
 	LoginRedis(ctx context.Context, requestId string, loginRequest modelrequest.LoginRequest) (loginResponse modelresponse.LoginResponse, token string, err error)
 	LoginMap(ctx context.Context, requestId string, loginRequest modelrequest.LoginRequest) (loginResponse modelresponse.LoginResponse, token string, err error)
+	LogoutRedis(ctx context.Context, requestId string, key string) (response string, err error)
+	LogoutMap(ctx context.Context, sessionId string) (response string, err error)
 }
 
 type UserServiceImplementation struct {
@@ -93,16 +95,14 @@ func (service *UserServiceImplementation) Login(ctx context.Context, requestId s
 		}
 	}()
 
-	var user *modelentity.User = &modelentity.User{}
-	user.Username = sql.NullString{Valid: true, String: loginRequest.Username}
-	err = service.UserRepository.GetByUsernameForUpdate(tx, ctx, user)
+	user, err := service.UserRepository.FindByEmailForUpate(tx, ctx, loginRequest.Email)
 	if err != nil && err != sql.ErrNoRows {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
 		// fmt.Println("err:", err)
 		return
 	} else if err == sql.ErrNoRows {
-		err = exception.NewNotFoundException("cannot find user: " + loginRequest.Username)
+		err = exception.NewNotFoundException("wrong email or password")
 		helper.PrintLogToTerminal(err, requestId)
 		return
 	}
@@ -114,13 +114,12 @@ func (service *UserServiceImplementation) Login(ctx context.Context, requestId s
 			err = exception.CheckError(err)
 			return
 		} else {
-			err = exception.NewBadRequestException("wrong username or password")
+			err = exception.NewBadRequestException("wrong email or password")
 			return
 		}
 	}
 
-	var userPermissions *[]modelentity.UserPermission = &[]modelentity.UserPermission{}
-	err = service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32, userPermissions)
+	userPermissions, err := service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32)
 	if err != nil && err != sql.ErrNoRows {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
@@ -128,21 +127,21 @@ func (service *UserServiceImplementation) Login(ctx context.Context, requestId s
 	}
 
 	var permissionAccessToken []string
-	if len(*userPermissions) > 0 {
+	if len(userPermissions) > 0 {
 		var ids []interface{}
-		for _, userPermission := range *userPermissions {
+		for _, userPermission := range userPermissions {
 			ids = append(ids, userPermission.Id.Int32)
 		}
 
-		var permissions *[]modelentity.Permission = &[]modelentity.Permission{}
-		err = service.PermissionRepository.GetByInId(tx, ctx, ids, permissions)
+		var permissions []modelentity.Permission
+		permissions, err = service.PermissionRepository.GetByInId(tx, ctx, ids)
 		if err != nil {
 			helper.PrintLogToTerminal(err, requestId)
 			err = exception.CheckError(err)
 			return
 		}
 
-		for _, permission := range *permissions {
+		for _, permission := range permissions {
 			isContain := slices.Contains(permissionAccessToken, permission.Permission.String)
 			// isContain := helper.CheckArrayContain(permissionAccessToken, permission.Permission.String)
 			if !isContain {
@@ -151,7 +150,7 @@ func (service *UserServiceImplementation) Login(ctx context.Context, requestId s
 		}
 	}
 
-	accessToken, err = generateAccessToken(*user, permissionAccessToken, service.JwtKey, service.JwtAccessTokenExpireTime)
+	accessToken, err = generateAccessToken(user, permissionAccessToken, service.JwtKey, service.JwtAccessTokenExpireTime)
 	if err != nil {
 		helper.PrintLogToTerminal(err, requestId)
 		accessToken = ""
@@ -184,7 +183,7 @@ func (service *UserServiceImplementation) Login(ctx context.Context, requestId s
 		err = exception.NewInternalServerErrorException()
 		return
 	}
-	loginResponse = modelresponse.ToLoginResponse(*user)
+	loginResponse = modelresponse.ToLoginResponse(user)
 	return
 }
 
@@ -263,9 +262,7 @@ func (service *UserServiceImplementation) RefreshToken(ctx context.Context, requ
 		}
 	}()
 
-	var user *modelentity.User = &modelentity.User{}
-	user.RefreshToken = sql.NullString{Valid: true, String: refreshToken}
-	err = service.UserRepository.GetByRefreshToken(tx, ctx, user)
+	user, err := service.UserRepository.GetByRefreshToken(tx, ctx, refreshToken)
 	if err != nil && err != sql.ErrNoRows {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
@@ -276,8 +273,7 @@ func (service *UserServiceImplementation) RefreshToken(ctx context.Context, requ
 		return
 	}
 
-	var userPermissions *[]modelentity.UserPermission = &[]modelentity.UserPermission{}
-	err = service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32, userPermissions)
+	userPermissions, err := service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32)
 	if err != nil {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
@@ -285,21 +281,21 @@ func (service *UserServiceImplementation) RefreshToken(ctx context.Context, requ
 	}
 
 	var permissionAccessToken []string
-	if len(*userPermissions) > 0 {
+	if len(userPermissions) > 0 {
 		var ids []interface{}
-		for _, userPermission := range *userPermissions {
+		for _, userPermission := range userPermissions {
 			ids = append(ids, userPermission.Id.Int32)
 		}
 
-		var permissions *[]modelentity.Permission = &[]modelentity.Permission{}
-		err = service.PermissionRepository.GetByInId(tx, ctx, ids, permissions)
+		var permissions []modelentity.Permission
+		permissions, err = service.PermissionRepository.GetByInId(tx, ctx, ids)
 		if err != nil {
 			helper.PrintLogToTerminal(err, requestId)
 			err = exception.CheckError(err)
 			return
 		}
 
-		for _, permission := range *permissions {
+		for _, permission := range permissions {
 			isContain := slices.Contains(permissionAccessToken, permission.Permission.String)
 			if !isContain {
 				permissionAccessToken = append(permissionAccessToken, permission.Permission.String)
@@ -307,7 +303,7 @@ func (service *UserServiceImplementation) RefreshToken(ctx context.Context, requ
 		}
 	}
 
-	accessToken, err = generateAccessToken(*user, permissionAccessToken, service.JwtKey, service.JwtAccessTokenExpireTime)
+	accessToken, err = generateAccessToken(user, permissionAccessToken, service.JwtKey, service.JwtAccessTokenExpireTime)
 	if err != nil {
 		helper.PrintLogToTerminal(err, requestId)
 		accessToken = ""
@@ -350,16 +346,14 @@ func (service *UserServiceImplementation) LoginRedis(ctx context.Context, reques
 		}
 	}()
 
-	var user *modelentity.User = &modelentity.User{}
-	user.Username = sql.NullString{Valid: true, String: loginRequest.Username}
-	err = service.UserRepository.GetByUsernameForUpdate(tx, ctx, user)
+	user, err := service.UserRepository.FindByEmailForUpate(tx, ctx, loginRequest.Email)
 	if err != nil && err != sql.ErrNoRows {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
 		return
 	}
 	if err == sql.ErrNoRows {
-		err = exception.NewNotFoundException("cannot find user: " + loginRequest.Username)
+		err = exception.NewNotFoundException("wrong email or password")
 		helper.PrintLogToTerminal(err, requestId)
 		return
 	}
@@ -371,13 +365,12 @@ func (service *UserServiceImplementation) LoginRedis(ctx context.Context, reques
 			err = exception.CheckError(err)
 			return
 		} else {
-			err = exception.NewBadRequestException("wrong username or password")
+			err = exception.NewBadRequestException("wrong email or password")
 			return
 		}
 	}
 
-	var userPermissions *[]modelentity.UserPermission = &[]modelentity.UserPermission{}
-	err = service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32, userPermissions)
+	userPermissions, err := service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32)
 	if err != nil {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
@@ -385,21 +378,21 @@ func (service *UserServiceImplementation) LoginRedis(ctx context.Context, reques
 	}
 
 	var permissionToken []string
-	if len(*userPermissions) > 0 {
+	if len(userPermissions) > 0 {
 		var ids []interface{}
-		for _, userPermission := range *userPermissions {
+		for _, userPermission := range userPermissions {
 			ids = append(ids, userPermission.Id.Int32)
 		}
 
-		var permissions *[]modelentity.Permission = &[]modelentity.Permission{}
-		err = service.PermissionRepository.GetByInId(tx, ctx, ids, permissions)
+		var permissions []modelentity.Permission
+		permissions, err = service.PermissionRepository.GetByInId(tx, ctx, ids)
 		if err != nil {
 			helper.PrintLogToTerminal(err, requestId)
 			err = exception.CheckError(err)
 			return
 		}
 
-		for _, permission := range *permissions {
+		for _, permission := range permissions {
 			isContain := slices.Contains(permissionToken, permission.Permission.String)
 			if !isContain {
 				permissionToken = append(permissionToken, permission.Permission.String)
@@ -416,7 +409,7 @@ func (service *UserServiceImplementation) LoginRedis(ctx context.Context, reques
 		return
 	}
 
-	loginResponse = modelresponse.ToLoginResponse(*user)
+	loginResponse = modelresponse.ToLoginResponse(user)
 	return
 }
 
@@ -453,15 +446,13 @@ func (service *UserServiceImplementation) LoginMap(ctx context.Context, requestI
 		}
 	}()
 
-	var user *modelentity.User = &modelentity.User{}
-	user.Username = sql.NullString{Valid: true, String: loginRequest.Username}
-	err = service.UserRepository.GetByUsername(tx, ctx, user)
+	user, err := service.UserRepository.FindByEmailForUpate(tx, ctx, loginRequest.Email)
 	if err != nil && err != sql.ErrNoRows {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
 		return
 	} else if err == sql.ErrNoRows {
-		err = exception.NewNotFoundException("cannot find user: " + loginRequest.Username)
+		err = exception.NewNotFoundException("wrong email or password")
 		helper.PrintLogToTerminal(err, requestId)
 		return
 	}
@@ -473,13 +464,12 @@ func (service *UserServiceImplementation) LoginMap(ctx context.Context, requestI
 			err = exception.CheckError(err)
 			return
 		} else {
-			err = exception.NewBadRequestException("wrong username or password")
+			err = exception.NewBadRequestException("wrong email or password")
 			return
 		}
 	}
 
-	var userPermissions *[]modelentity.UserPermission = &[]modelentity.UserPermission{}
-	err = service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32, userPermissions)
+	userPermissions, err := service.UserPermissionRepository.GetByUserId(tx, ctx, user.Id.Int32)
 	if err != nil {
 		helper.PrintLogToTerminal(err, requestId)
 		err = exception.CheckError(err)
@@ -487,21 +477,21 @@ func (service *UserServiceImplementation) LoginMap(ctx context.Context, requestI
 	}
 
 	var permissionToken []string
-	if len(*userPermissions) > 0 {
+	if len(userPermissions) > 0 {
 		var ids []interface{}
-		for _, userPermission := range *userPermissions {
+		for _, userPermission := range userPermissions {
 			ids = append(ids, userPermission.Id.Int32)
 		}
 
-		var permissions *[]modelentity.Permission = &[]modelentity.Permission{}
-		err = service.PermissionRepository.GetByInId(tx, ctx, ids, permissions)
+		var permissions []modelentity.Permission
+		permissions, err = service.PermissionRepository.GetByInId(tx, ctx, ids)
 		if err != nil {
 			helper.PrintLogToTerminal(err, requestId)
 			err = exception.CheckError(err)
 			return
 		}
 
-		for _, permission := range *permissions {
+		for _, permission := range permissions {
 			isContain := slices.Contains(permissionToken, permission.Permission.String)
 			if !isContain {
 				permissionToken = append(permissionToken, permission.Permission.String)
@@ -513,6 +503,23 @@ func (service *UserServiceImplementation) LoginMap(ctx context.Context, requestI
 	permissionTokenString := strings.Join(permissionToken, ",")
 	globals.Session[token] = permissionTokenString
 
-	loginResponse = modelresponse.ToLoginResponse(*user)
+	loginResponse = modelresponse.ToLoginResponse(user)
+	return
+}
+
+func (service *UserServiceImplementation) LogoutRedis(ctx context.Context, requestId string, key string) (response string, err error) {
+	_, err = service.RedisRepository.Del(service.RedisUtil.GetClient(), ctx, key)
+	if err != nil && err != redis.Nil {
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
+		return
+	}
+	response = "successfully logout redis"
+	return
+}
+
+func (service *UserServiceImplementation) LogoutMap(ctx context.Context, sessionId string) (response string, err error) {
+	delete(globals.Session, sessionId)
+	response = "successfully logout map"
 	return
 }

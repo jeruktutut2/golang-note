@@ -14,7 +14,10 @@ import (
 func CheckPermission(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		requestId := c.Request().Context().Value(RequestIdKey).(string)
-		permissions := c.Request().Context().Value(PermissionKey).([]interface{})
+		permissions, ok := c.Request().Context().Value(PermissionKey).([]interface{})
+		if !ok {
+			return modelresponse.ToResponse(c, http.StatusForbidden, requestId, "", "not permitted")
+		}
 		var permissinoMatch bool
 	permissionsLoop:
 		for _, permission := range permissions {
@@ -36,7 +39,10 @@ func CheckPermission(next echo.HandlerFunc) echo.HandlerFunc {
 func Nopermission(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		requestId := c.Request().Context().Value(RequestIdKey).(string)
-		permissions := c.Request().Context().Value(PermissionKey).([]interface{})
+		permissions, ok := c.Request().Context().Value(PermissionKey).([]interface{})
+		if !ok {
+			return modelresponse.ToResponse(c, http.StatusForbidden, requestId, "", "not permitted")
+		}
 		var permissinoMatch bool
 	permissionsLoop:
 		for _, permission := range permissions {

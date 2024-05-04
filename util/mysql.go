@@ -25,13 +25,7 @@ type MysqlUtilImplementation struct {
 
 func NewMysqlConnection(username string, password string, host string, port uint16, database string, maxOpenconnection uint16, maxIdleConnection uint16, connectionMaxLifetime uint16, connectionMaxIdletime uint16) MysqlUtil {
 	println(time.Now().String(), "mysql: connecting to", host)
-	// dsn := fmt.Sprintf(`%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local`,
-	// 	username,
-	// 	password,
-	// 	host,
-	// 	port,
-	// 	database,
-	// )
+
 	// why use concat instead fmt.Sprintf, because there is warning leaking param with username, password, host, database
 	dsn := username + `:` + password + `@tcp(` + host + `:` + strconv.Itoa(int(port)) + `)/` + database + `?charset=utf8mb4&parseTime=True&loc=Local`
 	db, err := sql.Open("mysql", dsn)
@@ -68,6 +62,7 @@ func (util *MysqlUtilImplementation) Close() {
 	if err != nil {
 		panic(err)
 	}
+	println(time.Now().String(), "mysql: closed properly")
 }
 
 func (util *MysqlUtilImplementation) CommitOrRollback(tx *sql.Tx, err error) error {

@@ -3,26 +3,11 @@ package main
 import (
 	"context"
 	"golang-note/configuration"
-	"golang-note/controller"
-	"golang-note/exception"
-	"golang-note/globals"
-	"golang-note/helper"
-	"golang-note/middleware"
-	"golang-note/repository"
-	"golang-note/route"
-	"golang-note/service"
+	"golang-note/consumer"
+	"golang-note/setup"
 	"golang-note/util"
-	"log"
-	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
@@ -34,95 +19,39 @@ func main() {
 	redis := util.NewRedisConnection(config.RedisHost, config.RedisPort, config.RedisDatabase)
 	defer redis.Close()
 
-	e := echo.New()
-	e.Use(echomiddleware.Recover())
-	e.HTTPErrorHandler = exception.CustomHTTPErrorHandler
-	e.Use(middleware.SetGlobalRequestId)
-	e.Use(middleware.SetGlobalTimeout(config.ApplicationTimeout))
-	e.Use(middleware.SetGlobalRequestLog)
+	e := setup.Echo(config)
 
-	globals.Session = make(map[string]string)
+	setup.Globals()
 
-	validate := validator.New()
-	helper.UsernameValidator(validate)
-	helper.PasswordValidator(validate)
-	helper.TelephoneValidator(validate)
+	validate := setup.Validate()
 
 	// kafka
-	emmiter := util.NewEmmiter()
-	defer emmiter.Finish()
+	emailEmitter := util.NewEmmiter([]string{"localhost:9092"}, "email")
+	defer emailEmitter.Finish()
+	textMessageEmitter := util.NewEmmiter([]string{"localhost:9092"}, "text-message")
+	defer textMessageEmitter.Finish()
 
-	userRepository := repository.NewUserRepository()
-	permissionRepository := repository.NewPermissionRepository()
-	userPermissionRepository := repository.NewUserPermissionRepository()
-	redisRepository := repository.NewRedisRepository()
-	contextRepository := repository.NewContextRepository()
+	// rabbit mq
+	rabbitmqConnection, rabbitmqChannel := util.NewRabbitmqConneciton(config)
+	defer rabbitmqConnection.Close()
 
-	userService := service.NewUserService(mysql, redis, validate, config.JwtKey, config.JwtAccessTokenExpireTime, config.JwtRefreshTokenExpireTime, userRepository, permissionRepository, userPermissionRepository, redisRepository)
-	contextService := service.NewContextService(mysql.GetDb(), contextRepository)
-	pdfService := service.NewPdfService()
-	streamJsonService := service.NewStreamJsonService()
+	repository := setup.Repository()
+	service := setup.Service(mysql, redis, validate, config, repository)
+	controller := setup.Controller(emailEmitter, textMessageEmitter, rabbitmqChannel, service)
+	setup.Route(e, config, redis, controller)
 
-	userController := controller.NewUserController(userService)
-	restController := controller.NewRestController()
-	contextController := controller.NewContextController(contextService)
-	permissionController := controller.NewPermissionController()
-	pdfController := controller.NewPdfController(pdfService)
-	kafkaController := controller.NewKafkaController(emmiter)
-	streamJsonController := controller.NewStreamJsonController(streamJsonService)
-	serverSentEventController := controller.NewServerSentEventController()
+	setup.RabbitmqConsummer(rabbitmqChannel)
 
-	route.UserRoute(e, config.JwtKey, redis.GetClient(), userController)
-	route.RestRoute(e, restController)
-	route.ContextRoute(e, contextController)
-	route.PermissionRoute(e, config.JwtKey, redis.GetClient(), permissionController)
-	route.PdfRoute(e, pdfController)
-	route.KafkaRoute(e, kafkaController)
-	route.StreamJsonRoute(e, streamJsonController)
-	route.ServerSentEventRoute(e, serverSentEventController)
-
-	// kafka
-	p, err := util.NewProcessor()
-	if err != nil {
-		log.Fatalln("error creating processor: ", err)
-	}
 	ctxKafka, cancelKafka := context.WithCancel(context.Background())
-	doneKafka := make(chan bool)
-	go func() {
-		defer close(doneKafka)
-		if err = p.Run(ctxKafka); err != nil {
-			log.Fatalf("error running processor: %v", err)
-		} else {
-			log.Printf("Processor shutdown cleanly")
-		}
-	}()
+	consumer.ConsumeEmailKafka(ctxKafka, []string{"localhost:9092"}, "email", "email-consumer-group")
+	consumer.ConsumeTextMessageKafka(ctxKafka, []string{"localhost:9092"}, "text-message", "text-message-consumer-group")
 
-	// echo server
+	setup.StartEcho(e, config)
+	defer setup.StopEcho(e)
+
+	// wait
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	go func() {
-		if err := e.Start(":" + strconv.Itoa(int(config.ApplicationPort))); err != nil && err != http.ErrServerClosed {
-			e.Logger.Fatal("shutting down the server")
-		}
-	}()
-
-	// kafka
-	waitKafka := make(chan os.Signal, 1)
-	signal.Notify(waitKafka, syscall.SIGINT, syscall.SIGTERM)
-	<-waitKafka
-	cancelKafka()
-	<-doneKafka
-
-	// echo server
 	<-ctx.Done()
-
-	mysql.Close()
-	println("mysql closed properly")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
-	}
-	println("server shutdown properly")
+	cancelKafka()
 }

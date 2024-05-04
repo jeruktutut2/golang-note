@@ -3,8 +3,11 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"golang-note/globals"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -12,6 +15,8 @@ import (
 type ServerSentEventController interface {
 	HandleSSE(c echo.Context) error
 	SendMessage(c echo.Context) error
+	HandleSSEWithoutChannel(c echo.Context) error
+	SendMessageWithoutChannel(c echo.Context) error
 }
 
 type ServerSentEventControllerImplementation struct {
@@ -50,6 +55,7 @@ func (controller *ServerSentEventControllerImplementation) HandleSSE(c echo.Cont
 			// c.Response().Flush()
 			flusher.Flush()
 		case <-c.Request().Context().Done():
+			fmt.Println("connection close")
 			return nil
 		}
 	}
@@ -59,4 +65,38 @@ func (controller *ServerSentEventControllerImplementation) SendMessage(c echo.Co
 	message := c.Param("message")
 	messageChan <- message
 	return nil
+}
+
+func (controller *ServerSentEventControllerImplementation) HandleSSEWithoutChannel(c echo.Context) error {
+	// c.SetRequest(c.Request().WithContext(context.Background()))
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
+
+	sseClient := globals.SSEClient{}
+	sseClient.Id = time.Now().UnixMilli()
+	sseClient.Context = c
+	globals.SSEClients = append(globals.SSEClients, sseClient)
+
+	<-c.Request().Context().Done()
+
+sseClientsLoop:
+	for i := 0; i < len(globals.SSEClients); i++ {
+		if globals.SSEClients[i].Id == sseClient.Id {
+			globals.SSEClients = append(globals.SSEClients[:i], globals.SSEClients[i+1:]...)
+			break sseClientsLoop
+		}
+	}
+	return nil
+}
+
+func (controller *ServerSentEventControllerImplementation) SendMessageWithoutChannel(c echo.Context) error {
+	message := c.Param("message")
+	for i := 0; i < len(globals.SSEClients); i++ {
+		ctx := globals.SSEClients[i].Context
+		json.NewEncoder(ctx.Response()).Encode(message)
+		ctx.Response().Flush()
+	}
+	return c.JSON(http.StatusOK, "ok")
 }

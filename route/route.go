@@ -19,27 +19,29 @@ func RestRoute(e *echo.Echo, controller controller.RestController) {
 }
 
 func UserRoute(e *echo.Echo, jwtKey string, client *redis.Client, controller controller.UserController) {
-	e.POST("/api/v1/login", controller.Login)
-	e.POST("/api/v1/refresh-token", controller.RefreshToken, middleware.Authenticate(jwtKey))
-	e.POST("/api/v1/login-redis", controller.LoginRedis)
-	e.GET("/api/v1/check-login-redis", controller.CheckLoginRedis, middleware.AuthenticateRedis(client))
-	e.POST("/api/v1/login-map", controller.LoginMap)
-	e.GET("/api/v1/check-login-map", controller.CheckLoginMap, middleware.AuthenticateMap)
-	e.POST("/api/v1/logout", controller.Logout)
+	e.POST("/api/v1/user/login", controller.Login)
+	e.POST("/api/v1/user/refresh-token", controller.RefreshToken, middleware.Authenticate(jwtKey))
+	e.POST("/api/v1/user/login-redis", controller.LoginRedis)
+	e.GET("/api/v1/user/check-login-redis", controller.CheckLoginRedis, middleware.AuthenticateRedis(client))
+	e.POST("/api/v1/user/login-map", controller.LoginMap)
+	e.GET("/api/v1/user/check-login-map", controller.CheckLoginMap, middleware.AuthenticateMap)
+	e.POST("/api/v1/user/logout", controller.Logout)
+	e.POST("/api/v1/user/logout-redis", controller.LogoutRedis, middleware.AuthenticateRedis(client))
+	e.POST("/api/v1/user/logout-map", controller.LogoutMap, middleware.AuthenticateMap)
 }
 
 func ContextRoute(e *echo.Echo, controller controller.ContextController) {
-	e.GET("/api/v1/timeout", controller.Timeout)
-	e.GET("/api/v1/custom-timeout", controller.CustomTimeout)
-	e.GET("/api/v1/timeout-db", controller.TimeoutDb)
-	e.GET("/api/v1/timeout-tx", controller.TimeoutTx)
+	e.GET("/api/v1/context/timeout", controller.Timeout)
+	e.GET("/api/v1/context/custom-timeout", controller.CustomTimeout)
+	e.GET("/api/v1/context/timeout-db", controller.TimeoutDb)
+	e.GET("/api/v1/context/timeout-tx", controller.TimeoutTx)
 }
 
 func PermissionRoute(e *echo.Echo, jwtKey string, client *redis.Client, controller controller.PermissionController) {
-	e.GET("/api/v1/permission", controller.Permission, middleware.CheckPermission, middleware.Authenticate(jwtKey))
-	e.GET("/api/v1/nopermission", controller.NoPermission, middleware.Nopermission, middleware.Authenticate(jwtKey))
-	e.GET("/api/v1/permission-redis", controller.PermissionRedis, middleware.CheckPermissionRedis(client), middleware.AuthenticateRedis(client))
-	e.GET("/api/v1/nopermission-redis", controller.NoPermissionRedis, middleware.CheckNoPermossionRedis(client), middleware.AuthenticateRedis(client))
+	e.GET("/api/v1/permission/check-permission", controller.Permission, middleware.Authenticate(jwtKey), middleware.CheckPermission)
+	e.GET("/api/v1/permission/check-nopermission", controller.NoPermission, middleware.Authenticate(jwtKey), middleware.Nopermission)
+	e.GET("/api/v1/permission/check-permission-redis", controller.PermissionRedis, middleware.AuthenticateRedis(client), middleware.CheckPermissionRedis(client))
+	e.GET("/api/v1/permission/check-nopermission-redis", controller.NoPermissionRedis, middleware.AuthenticateRedis(client), middleware.CheckNoPermossionRedis(client))
 }
 
 func PdfRoute(e *echo.Echo, controller controller.PdfController) {
@@ -47,14 +49,23 @@ func PdfRoute(e *echo.Echo, controller controller.PdfController) {
 }
 
 func KafkaRoute(e *echo.Echo, controller controller.KafkaController) {
-	e.GET("/api/v1/kafka/:key/:message", controller.EmitMessage)
+	e.GET("/api/v1/kafka/email/:message", controller.EmitEmailMessage)
+	e.GET("/api/v1/kafka/text-message/:message", controller.EmitTextMessage)
 }
 
 func StreamJsonRoute(e *echo.Echo, controller controller.StreamJsonController) {
 	e.GET("/api/v1/stream-json", controller.Stream)
+	e.GET("/api/v1/stream-without-channel", controller.StreamWithoutChannel)
+	e.GET("/api/v1/stream-with-sse", controller.StreamWithSSE)
 }
 
 func ServerSentEventRoute(e *echo.Echo, controller controller.ServerSentEventController) {
-	e.GET("/api/v1/handle-sse", controller.HandleSSE)
-	e.GET("/api/v1/send-message/:message", controller.SendMessage)
+	e.GET("/api/v1/sse/handle-sse", controller.HandleSSE)
+	e.GET("/api/v1/sse/send-message/:message", controller.SendMessage)
+	e.GET("/api/v1/sse/handle-sse-without-channel", controller.HandleSSEWithoutChannel)
+	e.GET("/api/v1/sse/send-message-without-channel/:message", controller.SendMessageWithoutChannel)
+}
+
+func RabbitmqController(e *echo.Echo, controller controller.RabbitmqController) {
+	e.GET("/api/v1/rabbitmq/push-message/:key/:message", controller.PushMessage)
 }

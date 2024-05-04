@@ -7,7 +7,7 @@ import (
 )
 
 type PermissionRepository interface {
-	GetByInId(tx *sql.Tx, ctx context.Context, ids []interface{}, permissions *[]modelentity.Permission) (err error)
+	GetByInId(tx *sql.Tx, ctx context.Context, ids []interface{}) (permissions []modelentity.Permission, err error)
 }
 
 type PermissionRepositoryImplementation struct {
@@ -17,7 +17,7 @@ func NewPermissionRepository() PermissionRepository {
 	return &PermissionRepositoryImplementation{}
 }
 
-func (repository *PermissionRepositoryImplementation) GetByInId(tx *sql.Tx, ctx context.Context, ids []interface{}, permissions *[]modelentity.Permission) (err error) {
+func (repository *PermissionRepositoryImplementation) GetByInId(tx *sql.Tx, ctx context.Context, ids []interface{}) (permissions []modelentity.Permission, err error) {
 	var placeholder string
 	for i := 0; i < len(ids); i++ {
 		placeholder += `,?`
@@ -43,7 +43,7 @@ func (repository *PermissionRepositoryImplementation) GetByInId(tx *sql.Tx, ctx 
 			permissions = nil
 			return
 		}
-		*permissions = append(*permissions, permission)
+		permissions = append(permissions, permission)
 	}
 	return
 }

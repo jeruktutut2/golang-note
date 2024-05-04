@@ -41,30 +41,40 @@ func (service *ContextServiceImplementation) CheckContext(ctx context.Context, r
 	rowsAffected, err := service.ContextRepository.CreateTable1(service.db, ctx)
 	if err != nil {
 		fmt.Println("err:", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	str, err = service.ContextRepository.Timeout(service.db, ctx)
 	if err != nil {
 		fmt.Println("err:", str, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	rowsAffected, err = service.ContextRepository.CreateTable2(service.db, ctx)
 	if err != nil {
 		fmt.Println("err:", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	str, err = service.ContextRepository.Timeout(service.db, ctx)
 	if err != nil {
 		fmt.Println("err:", str, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	rowsAffected, err = service.ContextRepository.CreateTable3(service.db, ctx)
 	if err != nil {
 		fmt.Println("", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 	return
@@ -79,30 +89,40 @@ func (service *ContextServiceImplementation) CheckContextTx(ctx context.Context,
 	rowsAffected, err := service.ContextRepository.CreateTable1Tx(tx, ctx)
 	if err != nil {
 		fmt.Println("err:", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	str, err = service.ContextRepository.TimeoutTx(tx, ctx)
 	if err != nil {
 		fmt.Println("err:", str, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	rowsAffected, err = service.ContextRepository.CreateTable2Tx(tx, ctx)
 	if err != nil {
 		fmt.Println("err:", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	str, err = service.ContextRepository.TimeoutTx(tx, ctx)
 	if err != nil {
 		fmt.Println("err:", str, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
 	rowsAffected, err = service.ContextRepository.CreateTable3Tx(tx, ctx)
 	if err != nil {
 		fmt.Println("err:", rowsAffected, err)
+		helper.PrintLogToTerminal(err, requestId)
+		err = exception.CheckError(err)
 		return
 	}
 
